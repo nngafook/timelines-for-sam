@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timelines for Sam</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 1.5rem;
+      color: #a0a0ff;
+    }
+
+    .controls {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .btn {
+      background: #4a4a8a;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background: #6a6aaa;
+    }
+
+    .timelines {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+
+    .timeline {
+      background: #2a2a4a;
+      border-radius: 10px;
+      padding: 15px;
+      position: relative;
+      user-select: none;
+    }
+
+    .timeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .timeline-title {
+      font-weight: bold;
+      color: #a0a0ff;
+    }
+
+    .delete-btn {
+      background: #8a4a4a;
+      color: #fff;
+      border: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .delete-btn:hover {
+      background: #aa6a6a;
+    }
+
+    .timeline-btn {
+      background: #4a4a6a;
+      color: #fff;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .timeline-btn:hover {
+      background: #6a6a8a;
+    }
+
+    .timeline-actions {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .timeline-actions .timeline-btn {
+      flex: 1;
+    }
+
+    .clear-all-btn {
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: auto repeat(4, 40px);
+      gap: 3px;
+    }
+
+    .col-label, .row-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: #888;
+      font-weight: bold;
+    }
+
+    .col-label {
+      height: 20px;
+    }
+
+    .row-label {
+      width: 20px;
+    }
+
+    .cell {
+      width: 40px;
+      height: 40px;
+      background: #3a3a5a;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 2px solid transparent;
+    }
+
+    .cell:hover {
+      border-color: #fff;
+    }
+
+    .cell.green {
+      background: #2d8a4a;
+    }
+
+    .cell.red {
+      background: #8a2d2d;
+    }
+
+    .cell.solved-innocent {
+      background: #3a3a5a;
+      border-color: #2d8a4a;
+      color: #2d8a4a;
+      font-weight: bold;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cell.solved-criminal {
+      background: #3a3a5a;
+      border-color: #8a2d2d;
+      color: #8a2d2d;
+      font-weight: bold;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .legend {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin-top: 30px;
+      font-size: 0.85rem;
+      color: #888;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .legend-swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+    }
+
+    .legend-swatch.tag-green { background: #2d8a4a; }
+    .legend-swatch.tag-red { background: #8a2d2d; }
+    .legend-swatch.solved-i {
+      background: #3a3a5a;
+      border: 2px solid #2d8a4a;
+      color: #2d8a4a;
+      font-size: 10px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .legend-swatch.solved-c {
+      background: #3a3a5a;
+      border: 2px solid #8a2d2d;
+      color: #8a2d2d;
+      font-size: 10px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .keybinds {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 15px;
+      font-size: 0.8rem;
+      color: #666;
+    }
+
+    .keybind {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    kbd {
+      background: #3a3a5a;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: inherit;
+      font-size: 0.75rem;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <h1>Timelines for Sam</h1>
+
+  <div class="controls">
+    <button class="btn" onclick="addTimeline()">+ New Timeline</button>
+    <button class="btn" style="background:#8a4a4a" onclick="clearAll()">Clear All</button>
+  </div>
+
+  <div class="timelines" id="timelines"></div>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-swatch tag-green"></div>
+      <span>Green Tag</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch tag-red"></div>
+      <span>Red Tag</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch solved-i">I</div>
+      <span>Solved Innocent</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch solved-c">C</div>
+      <span>Solved Criminal</span>
+    </div>
+  </div>
+
+  <div class="keybinds">
+    <span class="keybind"><kbd>Q</kbd> Green Tag</span>
+    <span class="keybind"><kbd>E</kbd> Red Tag</span>
+    <span class="keybind"><kbd>A</kbd> Innocent</span>
+    <span class="keybind"><kbd>D</kbd> Criminal</span>
+    <span class="keybind"><kbd>Space</kbd> Clear</span>
+    <span class="keybind"><kbd>Right Click</kbd> Clear</span>
+  </div>
+
+  <script>
+    const cols = ['A', 'B', 'C', 'D'];
+    const rows = [1, 2, 3, 4, 5];
+    const states = ['', 'green', 'red', 'solved-innocent', 'solved-criminal'];
+    let timelines = []; // array of cell states arrays
+
+    function save() {
+      localStorage.setItem('timelines', JSON.stringify(timelines));
+    }
+
+    function load() {
+      const data = localStorage.getItem('timelines');
+      if (data) {
+        timelines = JSON.parse(data);
+        timelines.forEach((cellStates, i) => renderTimeline(i, cellStates));
+      } else {
+        addTimeline();
+      }
+    }
+
+    function renderTimeline(index, cellStates = null) {
+      const container = document.getElementById('timelines');
+
+      const timeline = document.createElement('div');
+      timeline.className = 'timeline';
+      timeline.dataset.index = index;
+
+      let gridHTML = `
+        <div class="timeline-header">
+          <span class="timeline-title">Timeline ${index + 1}</span>
+          <button class="delete-btn" onclick="deleteTimeline(${index})">×</button>
+        </div>
+        <div class="timeline-actions">
+          <button class="timeline-btn" onclick="clearTags(${index})">Clear Tags</button>
+          <button class="timeline-btn" onclick="duplicateTimeline(${index})">Duplicate</button>
+        </div>
+        <div class="grid">
+          <div></div>
+      `;
+
+      cols.forEach(col => {
+        gridHTML += `<div class="col-label">${col}</div>`;
+      });
+
+      let cellIndex = 0;
+      rows.forEach(row => {
+        gridHTML += `<div class="row-label">${row}</div>`;
+        cols.forEach(col => {
+          const state = cellStates ? cellStates[cellIndex] : 0;
+          const letter = state === 3 ? 'I' : state === 4 ? 'C' : '';
+          gridHTML += `<div class="cell ${states[state]}" data-state="${state}" data-cell="${cellIndex}" onclick="cycleCell(this, ${index})" oncontextmenu="clearCell(event, this, ${index})">${letter}</div>`;
+          cellIndex++;
+        });
+      });
+
+      gridHTML += '</div>';
+      gridHTML += `<button class="timeline-btn clear-all-btn" onclick="clearTimeline(${index})">Clear All</button>`;
+      timeline.innerHTML = gridHTML;
+      container.appendChild(timeline);
+    }
+
+    function addTimeline() {
+      const cellStates = new Array(20).fill(0);
+      timelines.push(cellStates);
+      renderTimeline(timelines.length - 1, cellStates);
+      save();
+    }
+
+    function updateCellDisplay(cell, state) {
+      cell.className = 'cell ' + states[state];
+      if (state === 3) cell.textContent = 'I';
+      else if (state === 4) cell.textContent = 'C';
+      else cell.textContent = '';
+    }
+
+    function cycleCell(cell, timelineIndex) {
+      let state = parseInt(cell.dataset.state);
+      state = (state + 1) % states.length;
+      cell.dataset.state = state;
+      updateCellDisplay(cell, state);
+
+      const cellIndex = parseInt(cell.dataset.cell);
+      timelines[timelineIndex][cellIndex] = state;
+      save();
+    }
+
+    function clearCell(e, cell, timelineIndex) {
+      e.preventDefault();
+      cell.dataset.state = 0;
+      cell.className = 'cell';
+      cell.textContent = '';
+
+      const cellIndex = parseInt(cell.dataset.cell);
+      timelines[timelineIndex][cellIndex] = 0;
+      save();
+    }
+
+    function deleteTimeline(index) {
+      timelines.splice(index, 1);
+      save();
+      rerender();
+    }
+
+    function duplicateTimeline(index) {
+      const copy = [...timelines[index]];
+      timelines.push(copy);
+      renderTimeline(timelines.length - 1, copy);
+      save();
+    }
+
+    function clearTags(index) {
+      timelines[index] = timelines[index].map(s => (s === 1 || s === 2) ? 0 : s);
+      save();
+      rerender();
+    }
+
+    function clearTimeline(index) {
+      timelines[index] = new Array(20).fill(0);
+      save();
+      rerender();
+    }
+
+    function clearAll() {
+      timelines = [];
+      document.getElementById('timelines').innerHTML = '';
+      addTimeline();
+    }
+
+    function rerender() {
+      document.getElementById('timelines').innerHTML = '';
+      timelines.forEach((cellStates, i) => renderTimeline(i, cellStates));
+    }
+
+    let hoveredCell = null;
+    let hoveredTimeline = null;
+
+    document.querySelectorAll('.cell').forEach(cell => {
+      cell.addEventListener('mouseenter', () => {
+        hoveredCell = cell;
+        hoveredTimeline = parseInt(cell.closest('.timeline').dataset.index);
+      });
+      cell.addEventListener('mouseleave', () => {
+        hoveredCell = null;
+        hoveredTimeline = null;
+      });
+    });
+
+    function setupCellHover() {
+      document.querySelectorAll('.cell').forEach(cell => {
+        cell.onmouseenter = () => {
+          hoveredCell = cell;
+          hoveredTimeline = parseInt(cell.closest('.timeline').dataset.index);
+        };
+        cell.onmouseleave = () => {
+          hoveredCell = null;
+          hoveredTimeline = null;
+        };
+      });
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (!hoveredCell || hoveredTimeline === null) return;
+
+      const keyMap = { 'q': 1, 'e': 2, 'a': 3, 'd': 4, ' ': 0 };
+      const state = keyMap[e.key.toLowerCase()];
+
+      if (state !== undefined) {
+        e.preventDefault();
+        const currentState = parseInt(hoveredCell.dataset.state);
+        const newState = (currentState === state) ? 0 : state;
+        hoveredCell.dataset.state = newState;
+        updateCellDisplay(hoveredCell, newState);
+        const cellIndex = parseInt(hoveredCell.dataset.cell);
+        timelines[hoveredTimeline][cellIndex] = newState;
+        save();
+      }
+    });
+
+    const origRender = renderTimeline;
+    renderTimeline = function(index, cellStates) {
+      origRender(index, cellStates);
+      setupCellHover();
+    };
+
+    load();
+  </script>
+</body>
+</html>
