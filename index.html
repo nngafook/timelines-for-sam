@@ -253,6 +253,50 @@
       font-size: 0.75rem;
       color: #aaa;
     }
+
+    .evaluation {
+      background: #2a2a4a;
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .evaluation.visible {
+      display: block;
+    }
+
+    .evaluation h3 {
+      margin: 0 0 10px 0;
+      color: #a0a0ff;
+      font-size: 1rem;
+    }
+
+    .consensus-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .consensus-item {
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    .consensus-item.green {
+      background: #2d8a4a;
+      color: #fff;
+    }
+
+    .consensus-item.red {
+      background: #8a2d2d;
+      color: #fff;
+    }
+
+    .no-consensus {
+      color: #888;
+    }
   </style>
 </head>
 <body>
@@ -260,8 +304,11 @@
 
   <div class="controls">
     <button class="btn" onclick="addTimeline()">+ New Timeline</button>
+    <button class="btn" onclick="evaluateTimelines()">Evaluate</button>
     <button class="btn" style="background:#8a4a4a" onclick="clearAll()">Clear All</button>
   </div>
+
+  <div id="evaluation" class="evaluation"></div>
 
   <div class="timelines" id="timelines"></div>
 
@@ -308,6 +355,7 @@
       if (data) {
         timelines = JSON.parse(data);
         timelines.forEach((cellStates, i) => renderTimeline(i, cellStates));
+        evaluateTimelines();
       } else {
         addTimeline();
       }
@@ -359,6 +407,7 @@
       timelines.push(cellStates);
       renderTimeline(timelines.length - 1, cellStates);
       save();
+      evaluateTimelines();
     }
 
     function updateCellDisplay(cell, state) {
@@ -377,6 +426,7 @@
       const cellIndex = parseInt(cell.dataset.cell);
       timelines[timelineIndex][cellIndex] = state;
       save();
+      evaluateTimelines();
     }
 
     function clearCell(e, cell, timelineIndex) {
@@ -388,12 +438,14 @@
       const cellIndex = parseInt(cell.dataset.cell);
       timelines[timelineIndex][cellIndex] = 0;
       save();
+      evaluateTimelines();
     }
 
     function deleteTimeline(index) {
       timelines.splice(index, 1);
       save();
       rerender();
+      evaluateTimelines();
     }
 
     function duplicateTimeline(index) {
@@ -401,24 +453,68 @@
       timelines.push(copy);
       renderTimeline(timelines.length - 1, copy);
       save();
+      evaluateTimelines();
     }
 
     function clearTags(index) {
       timelines[index] = timelines[index].map(s => (s === 1 || s === 2) ? 0 : s);
       save();
       rerender();
+      evaluateTimelines();
     }
 
     function clearTimeline(index) {
       timelines[index] = new Array(20).fill(0);
       save();
       rerender();
+      evaluateTimelines();
     }
 
     function clearAll() {
       timelines = [];
       document.getElementById('timelines').innerHTML = '';
       addTimeline();
+    }
+
+    function evaluateTimelines() {
+      const evalDiv = document.getElementById('evaluation');
+
+      if (timelines.length < 2) {
+        evalDiv.className = 'evaluation visible';
+        evalDiv.innerHTML = '<h3>Consensus</h3><p class="no-consensus">Need at least 2 timelines to evaluate</p>';
+        return;
+      }
+
+      const consensus = [];
+      const cellLabels = [];
+      rows.forEach(row => {
+        cols.forEach(col => {
+          cellLabels.push(col + row);
+        });
+      });
+
+      for (let i = 0; i < 20; i++) {
+        const tags = timelines.map(t => t[i]).filter(s => s === 1 || s === 2);
+        if (tags.length === timelines.length) {
+          const allSame = tags.every(t => t === tags[0]);
+          if (allSame) {
+            consensus.push({ cell: cellLabels[i], state: tags[0] });
+          }
+        }
+      }
+
+      evalDiv.className = 'evaluation visible';
+      if (consensus.length === 0) {
+        evalDiv.innerHTML = '<h3>Consensus</h3><p class="no-consensus">No cells tagged the same across all timelines</p>';
+      } else {
+        let html = '<h3>Consensus</h3><div class="consensus-list">';
+        consensus.forEach(c => {
+          const cls = c.state === 1 ? 'green' : 'red';
+          html += `<span class="consensus-item ${cls}">${c.cell}</span>`;
+        });
+        html += '</div>';
+        evalDiv.innerHTML = html;
+      }
     }
 
     function rerender() {
@@ -468,6 +564,7 @@
         const cellIndex = parseInt(hoveredCell.dataset.cell);
         timelines[hoveredTimeline][cellIndex] = newState;
         save();
+        evaluateTimelines();
       }
     });
 
