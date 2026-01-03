@@ -71,6 +71,36 @@
     .timeline-title {
       font-weight: bold;
       color: #a0a0ff;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 3px;
+      max-width: 120px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+    }
+
+    .timeline-title:hover {
+      background: #3a3a5a;
+    }
+
+    .timeline-title-input {
+      font-weight: bold;
+      color: #a0a0ff;
+      background: #3a3a5a;
+      border: 1px solid #6a6a8a;
+      border-radius: 3px;
+      padding: 2px 4px;
+      font-size: inherit;
+      font-family: inherit;
+      width: 120px;
+    }
+
+    .timeline-title-input:focus {
+      outline: none;
+      border-color: #a0a0ff;
     }
 
     .delete-btn {
@@ -344,7 +374,7 @@
     const cols = ['A', 'B', 'C', 'D'];
     const rows = [1, 2, 3, 4, 5];
     const states = ['', 'green', 'red', 'solved-innocent', 'solved-criminal'];
-    let timelines = []; // array of cell states arrays
+    let timelines = []; // array of {name, cellStates} objects
 
     function save() {
       localStorage.setItem('timelines', JSON.stringify(timelines));
@@ -353,16 +383,25 @@
     function load() {
       const data = localStorage.getItem('timelines');
       if (data) {
-        timelines = JSON.parse(data);
-        timelines.forEach((cellStates, i) => renderTimeline(i, cellStates));
+        const parsed = JSON.parse(data);
+        // migrate old format (array of arrays) to new format (array of objects)
+        timelines = parsed.map((t, i) => {
+          if (Array.isArray(t)) {
+            return { name: `Timeline ${i + 1}`, cellStates: t };
+          }
+          return t;
+        });
+        save(); // save migrated data
+        timelines.forEach((t, i) => renderTimeline(i, t.cellStates, t.name));
         evaluateTimelines();
       } else {
         addTimeline();
       }
     }
 
-    function renderTimeline(index, cellStates = null) {
+    function renderTimeline(index, cellStates = null, name = null) {
       const container = document.getElementById('timelines');
+      const displayName = name || `Timeline ${index + 1}`;
 
       const timeline = document.createElement('div');
       timeline.className = 'timeline';
@@ -370,7 +409,7 @@
 
       let gridHTML = `
         <div class="timeline-header">
-          <span class="timeline-title">Timeline ${index + 1}</span>
+          <span class="timeline-title" onclick="editTimelineName(${index}, this)">${displayName}</span>
           <button class="delete-btn" onclick="deleteTimeline(${index})">×</button>
         </div>
         <div class="timeline-actions">
@@ -404,10 +443,45 @@
 
     function addTimeline() {
       const cellStates = new Array(20).fill(0);
-      timelines.push(cellStates);
-      renderTimeline(timelines.length - 1, cellStates);
+      const name = `Timeline ${timelines.length + 1}`;
+      timelines.push({ name, cellStates });
+      renderTimeline(timelines.length - 1, cellStates, name);
       save();
       evaluateTimelines();
+    }
+
+    function editTimelineName(index, element) {
+      const currentName = timelines[index].name;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'timeline-title-input';
+      input.value = currentName;
+
+      const finishEdit = () => {
+        const newName = input.value.trim() || `Timeline ${index + 1}`;
+        timelines[index].name = newName;
+        save();
+        const span = document.createElement('span');
+        span.className = 'timeline-title';
+        span.textContent = newName;
+        span.onclick = () => editTimelineName(index, span);
+        input.replaceWith(span);
+      };
+
+      input.onblur = finishEdit;
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          input.blur();
+        } else if (e.key === 'Escape') {
+          input.value = currentName;
+          input.blur();
+        }
+      };
+
+      element.replaceWith(input);
+      input.focus();
+      input.select();
     }
 
     function updateCellDisplay(cell, state) {
@@ -424,7 +498,7 @@
       updateCellDisplay(cell, state);
 
       const cellIndex = parseInt(cell.dataset.cell);
-      timelines[timelineIndex][cellIndex] = state;
+      timelines[timelineIndex].cellStates[cellIndex] = state;
       save();
       evaluateTimelines();
     }
@@ -436,7 +510,7 @@
       cell.textContent = '';
 
       const cellIndex = parseInt(cell.dataset.cell);
-      timelines[timelineIndex][cellIndex] = 0;
+      timelines[timelineIndex].cellStates[cellIndex] = 0;
       save();
       evaluateTimelines();
     }
@@ -449,22 +523,23 @@
     }
 
     function duplicateTimeline(index) {
-      const copy = [...timelines[index]];
+      const orig = timelines[index];
+      const copy = { name: orig.name + ' (copy)', cellStates: [...orig.cellStates] };
       timelines.push(copy);
-      renderTimeline(timelines.length - 1, copy);
+      renderTimeline(timelines.length - 1, copy.cellStates, copy.name);
       save();
       evaluateTimelines();
     }
 
     function clearTags(index) {
-      timelines[index] = timelines[index].map(s => (s === 1 || s === 2) ? 0 : s);
+      timelines[index].cellStates = timelines[index].cellStates.map(s => (s === 1 || s === 2) ? 0 : s);
       save();
       rerender();
       evaluateTimelines();
     }
 
     function clearTimeline(index) {
-      timelines[index] = new Array(20).fill(0);
+      timelines[index].cellStates = new Array(20).fill(0);
       save();
       rerender();
       evaluateTimelines();
@@ -494,7 +569,7 @@
       });
 
       for (let i = 0; i < 20; i++) {
-        const tags = timelines.map(t => t[i]).filter(s => s === 1 || s === 2);
+        const tags = timelines.map(t => t.cellStates[i]).filter(s => s === 1 || s === 2);
         if (tags.length === timelines.length) {
           const allSame = tags.every(t => t === tags[0]);
           if (allSame) {
@@ -519,7 +594,7 @@
 
     function rerender() {
       document.getElementById('timelines').innerHTML = '';
-      timelines.forEach((cellStates, i) => renderTimeline(i, cellStates));
+      timelines.forEach((t, i) => renderTimeline(i, t.cellStates, t.name));
     }
 
     let hoveredCell = null;
@@ -562,15 +637,15 @@
         hoveredCell.dataset.state = newState;
         updateCellDisplay(hoveredCell, newState);
         const cellIndex = parseInt(hoveredCell.dataset.cell);
-        timelines[hoveredTimeline][cellIndex] = newState;
+        timelines[hoveredTimeline].cellStates[cellIndex] = newState;
         save();
         evaluateTimelines();
       }
     });
 
     const origRender = renderTimeline;
-    renderTimeline = function(index, cellStates) {
-      origRender(index, cellStates);
+    renderTimeline = function(index, cellStates, name) {
+      origRender(index, cellStates, name);
       setupCellHover();
     };
 
