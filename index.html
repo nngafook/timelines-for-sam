@@ -61,6 +61,30 @@
       user-select: none;
     }
 
+    .color-menu {
+      position: absolute;
+      background: #1a1a2e;
+      border: 1px solid #4a4a6a;
+      border-radius: 6px;
+      padding: 6px;
+      display: flex;
+      gap: 4px;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+
+    .color-option {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 2px solid transparent;
+    }
+
+    .color-option:hover {
+      border-color: #fff;
+    }
+
     .timeline-header {
       display: flex;
       justify-content: space-between;
@@ -374,7 +398,8 @@
     const cols = ['A', 'B', 'C', 'D'];
     const rows = [1, 2, 3, 4, 5];
     const states = ['', 'green', 'red', 'solved-innocent', 'solved-criminal'];
-    let timelines = []; // array of {name, cellStates} objects
+    const bgColors = ['#2a2a5a', '#2a5a2a', '#5a2a2a', '#2a4a5a', '#5a5a2a', '#2a5a5a', '#5a2a5a'];
+    let timelines = []; // array of {name, cellStates, bgColor} objects
 
     function save() {
       localStorage.setItem('timelines', JSON.stringify(timelines));
@@ -384,28 +409,37 @@
       const data = localStorage.getItem('timelines');
       if (data) {
         const parsed = JSON.parse(data);
-        // migrate old format (array of arrays) to new format (array of objects)
+        // migrate old format to new format
         timelines = parsed.map((t, i) => {
           if (Array.isArray(t)) {
-            return { name: `Timeline ${i + 1}`, cellStates: t };
+            return { name: `Timeline ${i + 1}`, cellStates: t, bgColor: bgColors[0] };
           }
+          if (!t.bgColor) t.bgColor = bgColors[0];
           return t;
         });
         save(); // save migrated data
-        timelines.forEach((t, i) => renderTimeline(i, t.cellStates, t.name));
+        timelines.forEach((t, i) => renderTimeline(i, t.cellStates, t.name, t.bgColor));
         evaluateTimelines();
       } else {
         addTimeline();
       }
     }
 
-    function renderTimeline(index, cellStates = null, name = null) {
+    function renderTimeline(index, cellStates = null, name = null, bgColor = null) {
       const container = document.getElementById('timelines');
       const displayName = name || `Timeline ${index + 1}`;
+      const color = bgColor || bgColors[0];
 
       const timeline = document.createElement('div');
       timeline.className = 'timeline';
       timeline.dataset.index = index;
+      timeline.style.background = color;
+
+      timeline.oncontextmenu = (e) => {
+        if (e.target.classList.contains('cell')) return;
+        e.preventDefault();
+        showColorMenu(index, e.clientX, e.clientY, timeline);
+      };
 
       let gridHTML = `
         <div class="timeline-header">
@@ -444,10 +478,44 @@
     function addTimeline() {
       const cellStates = new Array(20).fill(0);
       const name = `Timeline ${timelines.length + 1}`;
-      timelines.push({ name, cellStates });
-      renderTimeline(timelines.length - 1, cellStates, name);
+      const bgColor = bgColors[0];
+      timelines.push({ name, cellStates, bgColor });
+      renderTimeline(timelines.length - 1, cellStates, name, bgColor);
       save();
       evaluateTimelines();
+    }
+
+    function showColorMenu(index, x, y, timelineEl) {
+      closeColorMenu();
+      const menu = document.createElement('div');
+      menu.className = 'color-menu';
+      menu.id = 'color-menu';
+
+      bgColors.forEach(color => {
+        const opt = document.createElement('div');
+        opt.className = 'color-option';
+        opt.style.background = color;
+        opt.onclick = () => {
+          timelines[index].bgColor = color;
+          timelineEl.style.background = color;
+          save();
+          closeColorMenu();
+        };
+        menu.appendChild(opt);
+      });
+
+      document.body.appendChild(menu);
+      menu.style.left = x + 'px';
+      menu.style.top = y + 'px';
+
+      setTimeout(() => {
+        document.addEventListener('click', closeColorMenu, { once: true });
+      }, 0);
+    }
+
+    function closeColorMenu() {
+      const menu = document.getElementById('color-menu');
+      if (menu) menu.remove();
     }
 
     function editTimelineName(index, element) {
@@ -524,9 +592,34 @@
 
     function duplicateTimeline(index) {
       const orig = timelines[index];
-      const copy = { name: orig.name + ' (copy)', cellStates: [...orig.cellStates] };
+      let newName;
+
+      const defaultMatch = orig.name.match(/^Timeline (\d+)$/);
+      if (defaultMatch) {
+        // Default name - find next available Timeline number
+        const existingNums = timelines
+          .map(t => t.name.match(/^Timeline (\d+)$/))
+          .filter(m => m)
+          .map(m => parseInt(m[1]));
+        let next = 1;
+        while (existingNums.includes(next)) next++;
+        newName = `Timeline ${next}`;
+      } else {
+        // Custom name - append incrementing number
+        const baseName = orig.name.replace(/ \d+$/, '');
+        const existingNums = timelines
+          .filter(t => t.name === baseName || t.name.match(new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\d+$`)))
+          .map(t => {
+            const m = t.name.match(/ (\d+)$/);
+            return m ? parseInt(m[1]) : 0;
+          });
+        const next = Math.max(0, ...existingNums) + 1;
+        newName = `${baseName} ${next}`;
+      }
+
+      const copy = { name: newName, cellStates: [...orig.cellStates], bgColor: orig.bgColor };
       timelines.push(copy);
-      renderTimeline(timelines.length - 1, copy.cellStates, copy.name);
+      renderTimeline(timelines.length - 1, copy.cellStates, copy.name, copy.bgColor);
       save();
       evaluateTimelines();
     }
@@ -594,7 +687,7 @@
 
     function rerender() {
       document.getElementById('timelines').innerHTML = '';
-      timelines.forEach((t, i) => renderTimeline(i, t.cellStates, t.name));
+      timelines.forEach((t, i) => renderTimeline(i, t.cellStates, t.name, t.bgColor));
     }
 
     let hoveredCell = null;
@@ -644,8 +737,8 @@
     });
 
     const origRender = renderTimeline;
-    renderTimeline = function(index, cellStates, name) {
-      origRender(index, cellStates, name);
+    renderTimeline = function(index, cellStates, name, bgColor) {
+      origRender(index, cellStates, name, bgColor);
       setupCellHover();
     };
 
