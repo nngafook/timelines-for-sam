@@ -59,6 +59,79 @@
       padding: 15px;
       position: relative;
       user-select: none;
+      display: flex;
+      gap: 12px;
+      cursor: grab;
+    }
+
+    .timeline.dragging {
+      opacity: 0.5;
+      cursor: grabbing;
+    }
+
+    .timeline.drag-over {
+      outline: 2px dashed #a0a0ff;
+      outline-offset: 2px;
+    }
+
+    .timeline-content {
+      width: 195px;
+    }
+
+    .timeline-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .sidebar-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sidebar-btn.delete {
+      background: #8a4a4a;
+      color: #fff;
+    }
+
+    .sidebar-btn.delete:hover {
+      background: #aa6a6a;
+    }
+
+    .sidebar-btn.ignore {
+      background: #4a4a6a;
+      color: #fff;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .sidebar-btn.ignore:hover {
+      background: #6a6a8a;
+    }
+
+    .sidebar-btn.ignore.active {
+      background: #6a6a3a;
+      color: #aa6;
+    }
+
+    .sidebar-btn:not(.delete):not(.ignore) {
+      background: #4a4a6a;
+      color: #fff;
+    }
+
+    .sidebar-btn:not(.delete):not(.ignore):hover {
+      background: #6a6a8a;
+    }
+
+    .sidebar-btn.clear-all {
+      margin-top: auto;
     }
 
     .color-menu {
@@ -86,9 +159,6 @@
     }
 
     .timeline-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
       margin-bottom: 10px;
     }
 
@@ -98,12 +168,12 @@
       cursor: pointer;
       padding: 2px 4px;
       border-radius: 3px;
-      max-width: 120px;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
+      display: block;
       overflow: hidden;
-      word-break: break-word;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      height: 22px;
+      line-height: 18px;
     }
 
     .timeline-title:hover {
@@ -116,10 +186,13 @@
       background: #3a3a5a;
       border: 1px solid #6a6a8a;
       border-radius: 3px;
-      padding: 2px 4px;
+      padding: 1px 4px;
       font-size: inherit;
       font-family: inherit;
-      width: 120px;
+      width: 100%;
+      box-sizing: border-box;
+      height: 22px;
+      line-height: 18px;
     }
 
     .timeline-title-input:focus {
@@ -127,50 +200,6 @@
       border-color: #a0a0ff;
     }
 
-    .delete-btn {
-      background: #8a4a4a;
-      color: #fff;
-      border: none;
-      width: 24px;
-      height: 24px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      line-height: 1;
-    }
-
-    .delete-btn:hover {
-      background: #aa6a6a;
-    }
-
-    .timeline-btn {
-      background: #4a4a6a;
-      color: #fff;
-      border: none;
-      padding: 4px 8px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-    }
-
-    .timeline-btn:hover {
-      background: #6a6a8a;
-    }
-
-    .timeline-actions {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 10px;
-    }
-
-    .timeline-actions .timeline-btn {
-      flex: 1;
-    }
-
-    .clear-all-btn {
-      width: 100%;
-      margin-top: 10px;
-    }
 
     .grid {
       display: grid;
@@ -398,8 +427,8 @@
     const cols = ['A', 'B', 'C', 'D'];
     const rows = [1, 2, 3, 4, 5];
     const states = ['', 'green', 'red', 'solved-innocent', 'solved-criminal'];
-    const bgColors = ['#2a2a5a', '#2a5a2a', '#5a2a2a', '#2a4a5a', '#5a5a2a', '#2a5a5a', '#5a2a5a'];
-    let timelines = []; // array of {name, cellStates, bgColor} objects
+    const bgColors = ['#2a2a4a', '#2a5a2a', '#5a2a2a', '#2a4a5a', '#5a5a2a', '#2a5a5a', '#5a2a5a'];
+    let timelines = []; // array of {name, cellStates, bgColor, ignored} objects
 
     function save() {
       localStorage.setItem('timelines', JSON.stringify(timelines));
@@ -412,9 +441,10 @@
         // migrate old format to new format
         timelines = parsed.map((t, i) => {
           if (Array.isArray(t)) {
-            return { name: `Timeline ${i + 1}`, cellStates: t, bgColor: bgColors[0] };
+            return { name: `Timeline ${i + 1}`, cellStates: t, bgColor: bgColors[0], ignored: false };
           }
           if (!t.bgColor) t.bgColor = bgColors[0];
+          if (t.ignored === undefined) t.ignored = false;
           return t;
         });
         save(); // save migrated data
@@ -434,6 +464,7 @@
       timeline.className = 'timeline';
       timeline.dataset.index = index;
       timeline.style.background = color;
+      timeline.draggable = true;
 
       timeline.oncontextmenu = (e) => {
         if (e.target.classList.contains('cell')) return;
@@ -441,17 +472,44 @@
         showColorMenu(index, e.clientX, e.clientY, timeline);
       };
 
+      timeline.ondragstart = (e) => {
+        timeline.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', index);
+      };
+
+      timeline.ondragend = () => {
+        timeline.classList.remove('dragging');
+        document.querySelectorAll('.timeline').forEach(t => t.classList.remove('drag-over'));
+      };
+
+      timeline.ondragover = (e) => {
+        e.preventDefault();
+        if (!timeline.classList.contains('dragging')) {
+          timeline.classList.add('drag-over');
+        }
+      };
+
+      timeline.ondragleave = () => {
+        timeline.classList.remove('drag-over');
+      };
+
+      timeline.ondrop = (e) => {
+        e.preventDefault();
+        timeline.classList.remove('drag-over');
+        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+        const toIndex = index;
+        if (fromIndex !== toIndex) {
+          reorderTimeline(fromIndex, toIndex);
+        }
+      };
+
       let gridHTML = `
-        <div class="timeline-header">
-          <span class="timeline-title" onclick="editTimelineName(${index}, this)">${displayName}</span>
-          <button class="delete-btn" onclick="deleteTimeline(${index})">×</button>
-        </div>
-        <div class="timeline-actions">
-          <button class="timeline-btn" onclick="clearTags(${index})">Clear Tags</button>
-          <button class="timeline-btn" onclick="duplicateTimeline(${index})">Duplicate</button>
-        </div>
-        <div class="grid">
-          <div></div>
+        <div class="timeline-content">
+          <div class="timeline-header">
+            <span class="timeline-title" onclick="editTimelineName(${index}, this)">${displayName}</span>
+          </div>
+          <div class="grid">
+            <div></div>
       `;
 
       cols.forEach(col => {
@@ -464,13 +522,23 @@
         cols.forEach(col => {
           const state = cellStates ? cellStates[cellIndex] : 0;
           const letter = state === 3 ? 'I' : state === 4 ? 'C' : '';
-          gridHTML += `<div class="cell ${states[state]}" data-state="${state}" data-cell="${cellIndex}" onclick="cycleCell(this, ${index})" oncontextmenu="clearCell(event, this, ${index})">${letter}</div>`;
+          gridHTML += `<div class="cell ${states[state]}" data-state="${state}" data-cell="${cellIndex}" onclick="cycleCell(event, this, ${index})" oncontextmenu="clearCell(event, this, ${index})">${letter}</div>`;
           cellIndex++;
         });
       });
 
       gridHTML += '</div>';
-      gridHTML += `<button class="timeline-btn clear-all-btn" onclick="clearTimeline(${index})">Clear All</button>`;
+      gridHTML += '</div>';
+      const ignoredClass = timelines[index]?.ignored ? ' active' : '';
+      gridHTML += `
+        <div class="timeline-sidebar">
+          <button class="sidebar-btn delete" onclick="deleteTimeline(${index})" title="Delete">×</button>
+          <button class="sidebar-btn ignore${ignoredClass}" onclick="toggleIgnore(${index})" title="Ignore in consensus">⊘</button>
+          <button class="sidebar-btn" onclick="duplicateTimeline(${index})" title="Duplicate">⧉</button>
+          <button class="sidebar-btn" onclick="clearTags(${index})" title="Clear tags">◔</button>
+          <button class="sidebar-btn clear-all" onclick="clearTimeline(${index})" title="Clear all">⊠</button>
+        </div>
+      `;
       timeline.innerHTML = gridHTML;
       container.appendChild(timeline);
     }
@@ -479,7 +547,7 @@
       const cellStates = new Array(20).fill(0);
       const name = `Timeline ${timelines.length + 1}`;
       const bgColor = bgColors[0];
-      timelines.push({ name, cellStates, bgColor });
+      timelines.push({ name, cellStates, bgColor, ignored: false });
       renderTimeline(timelines.length - 1, cellStates, name, bgColor);
       save();
       evaluateTimelines();
@@ -516,6 +584,20 @@
     function closeColorMenu() {
       const menu = document.getElementById('color-menu');
       if (menu) menu.remove();
+    }
+
+    function toggleIgnore(index) {
+      timelines[index].ignored = !timelines[index].ignored;
+      save();
+      rerender();
+      evaluateTimelines();
+    }
+
+    function reorderTimeline(fromIndex, toIndex) {
+      const [moved] = timelines.splice(fromIndex, 1);
+      timelines.splice(toIndex, 0, moved);
+      save();
+      rerender();
     }
 
     function editTimelineName(index, element) {
@@ -559,26 +641,38 @@
       else cell.textContent = '';
     }
 
-    function cycleCell(cell, timelineIndex) {
+    function setCellState(timelineIndex, cellIndex, state) {
+      timelines[timelineIndex].cellStates[cellIndex] = state;
+      const cell = document.querySelector(`.timeline[data-index="${timelineIndex}"] .cell[data-cell="${cellIndex}"]`);
+      if (cell) {
+        cell.dataset.state = state;
+        updateCellDisplay(cell, state);
+      }
+    }
+
+    function cycleCell(e, cell, timelineIndex) {
+      const cellIndex = parseInt(cell.dataset.cell);
       let state = parseInt(cell.dataset.state);
       state = (state + 1) % states.length;
-      cell.dataset.state = state;
-      updateCellDisplay(cell, state);
 
-      const cellIndex = parseInt(cell.dataset.cell);
-      timelines[timelineIndex].cellStates[cellIndex] = state;
+      if (e.shiftKey) {
+        timelines.forEach((_, i) => setCellState(i, cellIndex, state));
+      } else {
+        setCellState(timelineIndex, cellIndex, state);
+      }
       save();
       evaluateTimelines();
     }
 
     function clearCell(e, cell, timelineIndex) {
       e.preventDefault();
-      cell.dataset.state = 0;
-      cell.className = 'cell';
-      cell.textContent = '';
-
       const cellIndex = parseInt(cell.dataset.cell);
-      timelines[timelineIndex].cellStates[cellIndex] = 0;
+
+      if (e.shiftKey) {
+        timelines.forEach((_, i) => setCellState(i, cellIndex, 0));
+      } else {
+        setCellState(timelineIndex, cellIndex, 0);
+      }
       save();
       evaluateTimelines();
     }
@@ -617,7 +711,7 @@
         newName = `${baseName} ${next}`;
       }
 
-      const copy = { name: newName, cellStates: [...orig.cellStates], bgColor: orig.bgColor };
+      const copy = { name: newName, cellStates: [...orig.cellStates], bgColor: orig.bgColor, ignored: false };
       timelines.push(copy);
       renderTimeline(timelines.length - 1, copy.cellStates, copy.name, copy.bgColor);
       save();
@@ -647,9 +741,11 @@
     function evaluateTimelines() {
       const evalDiv = document.getElementById('evaluation');
 
-      if (timelines.length < 2) {
+      const activeTimelines = timelines.filter(t => !t.ignored);
+
+      if (activeTimelines.length < 2) {
         evalDiv.className = 'evaluation visible';
-        evalDiv.innerHTML = '<h3>Consensus</h3><p class="no-consensus">Need at least 2 timelines to evaluate</p>';
+        evalDiv.innerHTML = '<h3>Consensus</h3><p class="no-consensus">Need at least 2 non-ignored timelines to evaluate</p>';
         return;
       }
 
@@ -662,8 +758,8 @@
       });
 
       for (let i = 0; i < 20; i++) {
-        const tags = timelines.map(t => t.cellStates[i]).filter(s => s === 1 || s === 2);
-        if (tags.length === timelines.length) {
+        const tags = activeTimelines.map(t => t.cellStates[i]).filter(s => s === 1 || s === 2);
+        if (tags.length === activeTimelines.length) {
           const allSame = tags.every(t => t === tags[0]);
           if (allSame) {
             consensus.push({ cell: cellLabels[i], state: tags[0] });
@@ -673,7 +769,7 @@
 
       evalDiv.className = 'evaluation visible';
       if (consensus.length === 0) {
-        evalDiv.innerHTML = '<h3>Consensus</h3><p class="no-consensus">No cells tagged the same across all timelines</p>';
+        evalDiv.innerHTML = '<h3>Consensus</h3><p class="no-consensus">No cells tagged the same across all non-ignored timelines</p>';
       } else {
         let html = '<h3>Consensus</h3><div class="consensus-list">';
         consensus.forEach(c => {
@@ -727,10 +823,13 @@
         e.preventDefault();
         const currentState = parseInt(hoveredCell.dataset.state);
         const newState = (currentState === state) ? 0 : state;
-        hoveredCell.dataset.state = newState;
-        updateCellDisplay(hoveredCell, newState);
         const cellIndex = parseInt(hoveredCell.dataset.cell);
-        timelines[hoveredTimeline].cellStates[cellIndex] = newState;
+
+        if (e.shiftKey) {
+          timelines.forEach((_, i) => setCellState(i, cellIndex, newState));
+        } else {
+          setCellState(hoveredTimeline, cellIndex, newState);
+        }
         save();
         evaluateTimelines();
       }
