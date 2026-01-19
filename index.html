@@ -365,6 +365,11 @@
       padding: 4px 10px;
       border-radius: 4px;
       font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .consensus-item:hover {
+      filter: brightness(1.2);
     }
 
     .consensus-item.green {
@@ -774,11 +779,21 @@
         let html = '<h3>Consensus</h3><div class="consensus-list">';
         consensus.forEach(c => {
           const cls = c.state === 1 ? 'green' : 'red';
-          html += `<span class="consensus-item ${cls}">${c.cell}</span>`;
+          html += `<span class="consensus-item ${cls}" onclick="applyConsensus('${c.cell}', ${c.state})">${c.cell}</span>`;
         });
         html += '</div>';
         evalDiv.innerHTML = html;
       }
+    }
+
+    function applyConsensus(cellLabel, state) {
+      const col = cellLabel.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+      const row = parseInt(cellLabel.slice(1)) - 1; // 1-5 -> 0-4
+      const cellIndex = row * 4 + col;
+      const solvedState = state === 1 ? 3 : 4; // green->innocent, red->criminal
+      timelines.forEach((_, i) => setCellState(i, cellIndex, solvedState));
+      save();
+      evaluateTimelines();
     }
 
     function rerender() {
